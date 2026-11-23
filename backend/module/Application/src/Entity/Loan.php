@@ -90,4 +90,10 @@ class Loan{
     public function close(): void{
         $this->status = LoanStatus::Closed;
     }
+
+    public function markOverdue(): void{
+        if ($this->status === LoanStatus::Active) {
+            $this->status = LoanStatus::Overdue;
+        }
+    }
 }
