@@ -1,0 +1,10 @@
+html {
+  color-scheme: light;
+}
+body {
+  min-width: 320px;
+}
+::selection {
+  background: #d8e8cf;
+  color: #173e32;
+}
