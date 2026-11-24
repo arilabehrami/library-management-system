@@ -19,7 +19,7 @@ final class OperatorQueryService
     public function findStudent(int $id): User
     {
         $user = $this->em->find(User::class, $id);
-        if ($user === null || $user->isDeleted() || $user->getRole() !== 'student') {
+        if ($user === null || $user->getRole() !== 'student') {
             throw new \DomainException('Studenti nuk u gjet.');
         }
 
@@ -36,11 +36,11 @@ final class OperatorQueryService
         if ($status === 'active') {
             $qb->andWhere('l.returnedAt IS NULL')
                ->andWhere('l.dueAt >= :now')
-               ->setParameter('now', $now);
+               ->setParameter('now', $now->setTime(0, 0));
         } elseif ($status === 'overdue') {
             $qb->andWhere('l.returnedAt IS NULL')
                ->andWhere('l.dueAt < :now')
-               ->setParameter('now', $now);
+               ->setParameter('now', $now->setTime(0, 0));
         } elseif ($status === 'awaiting_payment') {
             $qb->andWhere('l.status = :st')
                ->setParameter('st', LoanStatus::AwaitingPayment);

@@ -55,6 +55,7 @@ final class BookService
     public function create(User $actor, array $data, \DateTimeImmutable $now): Book
     {
         $this->requireStaff($actor);
+        $this->validate($data);
         $this->assertIsbnFree($data['isbn']);
 
         return $this->em->wrapInTransaction(function () use ($actor, $data, $now): Book {
@@ -62,7 +63,8 @@ final class BookService
             $this->em->persist($book);
             $this->em->flush();
 
-            $this->log($actor, 'book.created', $book->getId(), $now, ['isbn' => $book->getIsbn()]);
+            $this->notifications->checkStock($book);
+            $this->log($actor, 'book.created', $book->getId(), $now, ['isbn' => $book->getIsbn(), 'stock' => $book->getStock()]);
             $this->em->flush();
 
             return $book;
@@ -72,24 +74,31 @@ final class BookService
     public function update(User $actor, int $id, array $data, \DateTimeImmutable $now): Book
     {
         $this->requireStaff($actor);
-        $book = $this->find($id);
+        $this->validate($data);
 
-        if (isset($data['isbn']) && $data['isbn'] !== $book->getIsbn()) {
-            $this->assertIsbnFree($data['isbn']);
-            $book->setIsbn($data['isbn']);
-        }
-        if (isset($data['title']))    { $book->setTitle($data['title']); }
-        if (isset($data['author']))   { $book->setAuthor($data['author']); }
-        if (isset($data['category'])) { $book->setCategory($data['category']); }
-        if (isset($data['stock']))    { $book->setStock((int) $data['stock']); }
+        return $this->em->wrapInTransaction(function () use ($actor, $id, $data, $now): Book {
+            $book = $this->em->find(Book::class, $id, \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+            if ($book === null || $book->isDeleted()) {
+                throw new \DomainException('Libri nuk u gjet.');
+            }
 
-        $this->notifications->checkStock($book);
+            if (isset($data['isbn']) && $data['isbn'] !== $book->getIsbn()) {
+                $this->assertIsbnFree($data['isbn']);
+                $book->setIsbn($data['isbn']);
+            }
+            if (isset($data['title']))    { $book->setTitle($data['title']); }
+            if (isset($data['author']))   { $book->setAuthor($data['author']); }
+            if (isset($data['category'])) { $book->setCategory($data['category']); }
+            if (isset($data['stock']))    { $book->setStock((int) $data['stock']); }
 
-        $book->updateUpdatedAt();
-        $this->log($actor, 'book.updated', $book->getId(), $now, array_keys($data));
-        $this->em->flush();
+            $this->notifications->checkStock($book);
 
-        return $book;
+            $book->updateUpdatedAt();
+            $this->log($actor, 'book.updated', $book->getId(), $now, $data);
+            $this->em->flush();
+
+            return $book;
+        });
     }
 
     public function delete(User $actor, int $id, \DateTimeImmutable $now): void
@@ -100,6 +109,19 @@ final class BookService
         $book->delete($now);
         $this->log($actor, 'book.deleted', $book->getId(), $now, null);
         $this->em->flush();
+    }
+
+    private function validate(array $data): void
+    {
+        foreach (['title', 'author', 'isbn', 'category'] as $field) {
+            $max = $field === 'isbn' ? 50 : ($field === 'category' ? 100 : 255);
+            if (array_key_exists($field, $data) && (!is_string($data[$field]) || trim($data[$field]) === '' || mb_strlen($data[$field]) > $max)) {
+                throw new \DomainException("Vlerë e pavlefshme për $field.");
+            }
+        }
+        if (array_key_exists('stock', $data) && (filter_var($data['stock'], FILTER_VALIDATE_INT) === false || (int) $data['stock'] < 0 || (int) $data['stock'] > 2147483647)) {
+            throw new \DomainException('Stoku duhet të jetë numër i plotë jo negativ.');
+        }
     }
 
     private function requireStaff(User $actor): void

@@ -22,6 +22,10 @@ final class MeController extends AbstractActionController
 
     public function loansAction(): Response
     {
+        if (!$this->getRequest()->isGet()) {
+            return $this->json(['error' => 'Metoda nuk lejohet.'], 405);
+        }
+
         $user = $this->authenticate();
         if ($user instanceof Response) {
             return $user;
@@ -30,11 +34,15 @@ final class MeController extends AbstractActionController
         $now = new \DateTimeImmutable();
         $loans = array_map(fn(Loan $l) => $this->presentLoan($l, $now), $this->queries->activeFor($user));
 
-        return $this->json(['loans' => $loans], 200);
+        return $this->json(['loans' => $loans, 'policy' => $this->queries->policy()], 200);
     }
 
     public function historyAction(): Response
     {
+        if (!$this->getRequest()->isGet()) {
+            return $this->json(['error' => 'Metoda nuk lejohet.'], 405);
+        }
+
         $user = $this->authenticate();
         if ($user instanceof Response) {
             return $user;
@@ -43,11 +51,15 @@ final class MeController extends AbstractActionController
         $now = new \DateTimeImmutable();
         $loans = array_map(fn(Loan $l) => $this->presentLoan($l, $now), $this->queries->historyFor($user));
 
-        return $this->json(['loans' => $loans], 200);
+        return $this->json(['loans' => $loans, 'policy' => $this->queries->policy()], 200);
     }
 
     public function penaltiesAction(): Response
     {
+        if (!$this->getRequest()->isGet()) {
+            return $this->json(['error' => 'Metoda nuk lejohet.'], 405);
+        }
+
         $user = $this->authenticate();
         if ($user instanceof Response) {
             return $user;
@@ -77,7 +89,7 @@ final class MeController extends AbstractActionController
     private function presentLoan(Loan $loan, \DateTimeImmutable $now): array
     {
         $status = $loan->getStatus()->value;
-        if ($loan->getReturnedAt() === null && $loan->getDueAt() < $now) {
+        if ($loan->getReturnedAt() === null && $loan->getDueAt() < $now->setTime(0, 0)) {
             $status = 'overdue';
         }
 

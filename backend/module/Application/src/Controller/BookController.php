@@ -61,7 +61,7 @@ final class BookController extends AbstractActionController
                 return $this->json(['error' => "Mungon fusha: $field."], 400);
             }
         }
-        if (!isset($data['stock']) || (int) $data['stock'] < 0) {
+        if (!isset($data['stock']) || filter_var($data['stock'], FILTER_VALIDATE_INT) === false || (int) $data['stock'] < 0) {
             return $this->json(['error' => 'Stoku duhet të jetë numër jo negativ.'], 400);
         }
 

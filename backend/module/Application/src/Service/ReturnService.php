@@ -36,6 +36,8 @@ final class ReturnService
                 throw new \DomainException('Huazimi nuk u gjet.');
             }
 
+            $this->em->lock($loan->getUser(), LockMode::PESSIMISTIC_WRITE);
+
             if ($loan->getReturnedAt() !== null) {
                 throw new \DomainException('Ky huazim është kthyer tashmë.');
             }
@@ -49,12 +51,22 @@ final class ReturnService
             $this->notifications->checkStock($book);
 
             $daysLate = $this->daysLate($loan->getDueAt(), $now);
-            $hasPenalty = $daysLate > 0;
+            $rate = $this->setting('penalty_rate');
+            $hasPenalty = $daysLate > 0 && bccomp($rate, '0', 2) > 0;
 
             $loan->markReturned($now, $hasPenalty);
 
             if ($hasPenalty) {
-                $this->em->persist(new Penalty($loan, $daysLate, $this->setting('penalty_rate')));
+                $penalty = new Penalty($loan, $daysLate, $rate);
+                $this->em->persist($penalty);
+                $this->em->flush();
+                $this->em->persist(new SystemLog(
+                    actor: $actor,
+                    actionType: 'penalty.created',
+                    entityType: 'Penalty',
+                    entityId: $penalty->getId(),
+                    details: json_encode(['loan_id' => $loan->getId(), 'amount' => $penalty->getAmount()], JSON_THROW_ON_ERROR)
+                ));
             }
 
             $this->em->persist(new SystemLog(
@@ -64,6 +76,7 @@ final class ReturnService
                 entityId: $loan->getId(),
                 details: json_encode([
                     'book_id' => $book->getId(),
+                    'stock' => $book->getStock(),
                     'days_late' => $daysLate,
                     'status' => $loan->getStatus()->value,
                 ], JSON_THROW_ON_ERROR)
@@ -82,6 +95,8 @@ final class ReturnService
             if ($loan === null) {
                 throw new \DomainException('Huazimi nuk u gjet.');
             }
+
+            $this->em->lock($loan->getUser(), LockMode::PESSIMISTIC_WRITE);
 
             $isOwner = $loan->getUser()->getId() === $actor->getId();
             if (!$isOwner && !$actor->isStaff()) {
@@ -104,7 +119,6 @@ final class ReturnService
                 amount: $penalty->getAmount(),
                 paymentType: 'penalty',
                 paymentMethod: $isOwner ? 'online' : 'in_person',
-                loan: $loan,
                 penalty: $penalty,
                 processedBy: $isOwner ? null : $actor
             ));

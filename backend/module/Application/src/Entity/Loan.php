@@ -40,11 +40,12 @@ class Loan{
         User $user,
         Book $book,
         \DateTimeImmutable $dueAt,
-        string $borrowFeeAmount
+        string $borrowFeeAmount,
+        ?\DateTimeImmutable $borrowedAt = null
     ) {
         $this->user = $user;
         $this->book = $book;
-        $this->borrowedAt = new \DateTimeImmutable();
+        $this->borrowedAt = $borrowedAt ?? new \DateTimeImmutable();
         $this->dueAt = $dueAt;
         $this->status = LoanStatus::Active;
         $this->borrowFeeAmount = $borrowFeeAmount;

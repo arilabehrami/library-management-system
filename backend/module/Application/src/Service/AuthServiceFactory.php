@@ -11,6 +11,9 @@ final class AuthServiceFactory
     public function __invoke(ContainerInterface $container): AuthService
     {
         $config = $container->get('config')['auth'];
+        if (strlen($config['jwt_secret']) < 32) {
+            throw new \RuntimeException('JWT_SECRET duhet të ketë të paktën 32 karaktere.');
+        }
 
         return new AuthService(
             $container->get('doctrine.entitymanager.orm_default'),

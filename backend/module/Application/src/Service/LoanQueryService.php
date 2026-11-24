@@ -16,6 +16,20 @@ final class LoanQueryService
     ) {
     }
 
+    public function penaltyForLoan(Loan $loan): ?Penalty
+    {
+        return $this->em->getRepository(Penalty::class)->findOneBy(['loan' => $loan]);
+    }
+
+    public function policy(): array
+    {
+        $out = [];
+        foreach ($this->em->getRepository(\Application\Entity\SystemSetting::class)->findAll() as $setting) {
+            $out[$setting->getSettingKey()] = $setting->getSettingValue();
+        }
+        return $out;
+    }
+
     public function activeFor(User $user): array
     {
         return $this->em->createQueryBuilder()

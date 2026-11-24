@@ -18,6 +18,13 @@ final class NotificationService
     ) {
     }
 
+    public function refreshAlerts(): void
+    {
+        $overdue = new OverdueService($this->em);
+        $overdue->run(new \DateTimeImmutable());
+        $overdue->remindPendingPenalties();
+    }
+
     public function checkStock(Book $book): void
     {
         $stock = $book->getStock();
@@ -27,7 +34,7 @@ final class NotificationService
 
         $isOut = $stock === 0;
         $title = $isOut ? 'Libri ka mbaruar' : 'Stok i ulët';
-        $message = sprintf('"%s" ka %d kopje të mbetura.', $book->getTitle(), $stock);
+        $message = sprintf('ISBN %s: "%s" ka %d kopje të mbetura.', $book->getIsbn(), $book->getTitle(), $stock);
         $type = $isOut ? 'out_of_stock' : 'low_stock';
 
         $staff = $this->em->createQueryBuilder()
@@ -49,7 +56,7 @@ final class NotificationService
                 ->andWhere('n.message LIKE :prefix')
                 ->setParameter('user', $user)
                 ->setParameter('type', $type)
-                ->setParameter('prefix', '"' . $book->getTitle() . '" %')
+                ->setParameter('prefix', 'ISBN ' . $book->getIsbn() . ':%')
                 ->setMaxResults(1)
                 ->getQuery()
                 ->getOneOrNullResult();

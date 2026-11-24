@@ -39,7 +39,7 @@ final class UserService
         $password = (string) ($data['password'] ?? '');
         $role = (string) ($data['role'] ?? '');
 
-        if ($name === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+        if ($name === '' || mb_strlen($name) > 255 || strlen($email) > 255 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
             throw new \DomainException('Emri ose email-i nuk është i vlefshëm.');
         }
         $this->assertPassword($password);
@@ -64,6 +64,12 @@ final class UserService
         $this->requireSuperAdmin($actor);
         $target = $this->findManageable($id);
 
+        if (isset($data['name']) && (!is_string($data['name']) || trim($data['name']) === '' || mb_strlen($data['name']) > 255)) {
+            throw new \DomainException('Emri nuk është i vlefshëm.');
+        }
+        if (isset($data['email']) && (!is_string($data['email']) || strlen($data['email']) > 255 || filter_var($data['email'], FILTER_VALIDATE_EMAIL) === false)) {
+            throw new \DomainException('Email-i nuk është i vlefshëm.');
+        }
         if (isset($data['name'])) {
             $target->setName(trim((string) $data['name']));
         }

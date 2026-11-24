@@ -41,7 +41,7 @@ final class LoanService
                 throw new \DomainException('UNAVAILABLE: Libri nuk është i disponueshëm.');
             }
 
-            if ($this->hasUnpaidPenalty($lockedUser)) {
+            if ($this->hasUnpaidPenalty($lockedUser) || (bccomp($this->setting('penalty_rate'), '0', 2) > 0 && $this->hasOverdueLoan($lockedUser, $now))) {
                 throw new \DomainException('Nuk mund të huazosh: ke penalitete të papaguara.');
             }
 
@@ -55,7 +55,7 @@ final class LoanService
 
             $dueAt = $now->setTime(23, 59, 59)->modify("+{$borrowingPeriod} days");
 
-            $loan = new Loan($lockedUser, $book, $dueAt, $borrowFee);
+            $loan = new Loan($lockedUser, $book, $dueAt, $borrowFee, $now);
             $book->decrementStock();
             
             $this->notifications->checkStock($book);
@@ -78,6 +78,7 @@ final class LoanService
                 entityId: $loan->getId(),
                 details: json_encode([
                     'book_id' => $book->getId(),
+                    'stock' => $book->getStock(),
                     'fee' => $borrowFee,
                     'due_at' => $dueAt->format(DATE_ATOM),
                 ], JSON_THROW_ON_ERROR)
@@ -87,6 +88,19 @@ final class LoanService
 
             return $loan;
         });
+    }
+
+    private function hasOverdueLoan(User $user, \DateTimeImmutable $now): bool
+    {
+        return (int) $this->em->createQueryBuilder()
+            ->select('COUNT(l.id)')
+            ->from(Loan::class, 'l')
+            ->where('l.user = :user')
+            ->andWhere('l.returnedAt IS NULL')
+            ->andWhere('l.dueAt < :today')
+            ->setParameter('user', $user)
+            ->setParameter('today', $now->setTime(0, 0))
+            ->getQuery()->getSingleScalarResult() > 0;
     }
 
     private function hasUnpaidPenalty(User $user): bool

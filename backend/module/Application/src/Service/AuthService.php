@@ -20,7 +20,7 @@ final class AuthService
 
     public function login(string $email, string $password, \DateTimeImmutable $now): array
     {
-        $user = $this->em->getRepository(User::class)->findOneBy(['email' => $email]);
+        $user = $this->em->getRepository(User::class)->findOneBy(['email' => strtolower(trim($email))]);
 
         if ($user === null || $user->isDeleted() || !password_verify($password, $user->getPasswordHash())) {
             throw new \DomainException('Email ose fjalëkalim i gabuar.');

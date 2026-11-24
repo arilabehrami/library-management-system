@@ -21,11 +21,16 @@ final class NotificationController extends AbstractActionController
 
     public function listAction(): Response
     {
+        if (!$this->getRequest()->isGet()) {
+            return $this->json(['error' => 'Metoda nuk lejohet.'], 405);
+        }
+
         $user = $this->authenticate();
         if ($user instanceof Response) {
             return $user;
         }
 
+        $this->notifications->refreshAlerts();
         $list = array_map(fn(Notification $n) => $this->present($n), $this->notifications->listFor($user));
 
         return $this->json(['notifications' => $list], 200);
@@ -33,6 +38,9 @@ final class NotificationController extends AbstractActionController
 
     public function readAction(): Response
     {
+        if (!$this->getRequest()->isPost()) {
+            return $this->json(['error' => 'Metoda nuk lejohet.'], 405);
+        }
         $user = $this->authenticate();
         if ($user instanceof Response) {
             return $user;

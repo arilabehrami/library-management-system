@@ -128,7 +128,7 @@ final class OperatorController extends AbstractActionController
     private function presentLoan(Loan $loan, \DateTimeImmutable $now): array
     {
         $status = $loan->getStatus()->value;
-        if ($loan->getReturnedAt() === null && $loan->getDueAt() < $now) {
+        if ($loan->getReturnedAt() === null && $loan->getDueAt() < $now->setTime(0, 0)) {
             $status = 'overdue';
         }
 
@@ -144,6 +144,7 @@ final class OperatorController extends AbstractActionController
             'returned_at' => $loan->getReturnedAt()?->format(DATE_ATOM),
             'status' => $status,
             'fee' => $loan->getBorrowFeeAmount(),
+            'penalty' => ($penalty = $this->loans->penaltyForLoan($loan)) ? $this->presentPenalty($penalty) : null,
         ];
     }
 

@@ -68,8 +68,8 @@ final class SettingService
     private function validate(string $key, string $value): void
     {
         $ok = match (self::RULES[$key]) {
-            'decimal' => preg_match('/^\d+(\.\d{1,2})?$/', $value) === 1,
-            'int'     => ctype_digit($value) && (int) $value >= 1,
+            'decimal' => preg_match('/^\d{1,8}(\.\d{1,2})?$/', $value) === 1,
+            'int'     => ctype_digit($value) && (int) $value >= 1 && (int) $value <= 36500,
         };
 
         if (!$ok) {

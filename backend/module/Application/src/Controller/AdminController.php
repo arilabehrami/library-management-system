@@ -73,6 +73,10 @@ final class AdminController extends AbstractActionController
 
     public function settingsAction(): Response
     {
+        if (!$this->getRequest()->isGet()) {
+            return $this->json(['error' => 'Metoda nuk lejohet.'], 405);
+        }
+
         $admin = $this->authenticate();
         if ($admin instanceof Response) {
             return $admin;
@@ -117,6 +121,10 @@ final class AdminController extends AbstractActionController
 
     public function logsAction(): Response
     {
+        if (!$this->getRequest()->isGet()) {
+            return $this->json(['error' => 'Metoda nuk lejohet.'], 405);
+        }
+
         $admin = $this->authenticate();
         if ($admin instanceof Response) {
             return $admin;

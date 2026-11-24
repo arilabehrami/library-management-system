@@ -25,7 +25,7 @@ final class OverdueService
             ->andWhere('l.status = :st')
             ->andWhere('l.dueAt < :now')
             ->setParameter('st', LoanStatus::Active)
-            ->setParameter('now', $now)
+            ->setParameter('now', $now->setTime(0, 0))
             ->getQuery()
             ->getResult();
 
@@ -34,9 +34,9 @@ final class OverdueService
 
             $this->em->persist(new Notification(
                 $loan->getUser(),
-                'Libri i vonuar',
+                'Libër i vonuar dhe penalitet në pritje',
                 sprintf(
-                    '"%s" duhej kthyer më %s.',
+                    '"%s" duhej kthyer më %s. Penaliteti rritet për çdo ditë vonesë. Dorëzo librin te operatori për llogaritjen dhe pagesën përfundimtare.',
                     $loan->getBook()->getTitle(),
                     $loan->getDueAt()->format('d.m.Y')
                 ),
