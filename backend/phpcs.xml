@@ -2,12 +2,12 @@
 <ruleset name="Laminas Coding Standard">
     <description>Laminas Coding Standard</description>
 
-    <!-- display progress -->
+    
     <arg value="p"/>
     <arg name="colors"/>
     <arg name="extensions" value="php,dist,phtml"/>
 
-    <!-- inherit rules from: -->
+    
     <rule ref="PSR12"/>
     <rule ref="Generic.Arrays.DisallowLongArraySyntax"/>
     <rule ref="Generic.Formatting.SpaceAfterNot"/>
@@ -25,7 +25,7 @@
         <exclude-pattern>public/index.php</exclude-pattern>
     </rule>
 
-    <!-- view files adjustments -->
+    
     <rule ref="Generic.Files.LineLength">
         <exclude-pattern>*.phtml</exclude-pattern>
     </rule>
@@ -35,7 +35,7 @@
         <exclude-pattern>*.phtml</exclude-pattern>
     </rule>
 
-    <!-- Paths to check -->
+    
     <file>config</file>
     <file>module</file>
     <file>public/index.php</file>
