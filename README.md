@@ -69,7 +69,7 @@ Controllers handle HTTP requests and JSON responses. Services contain the borrow
 | **Operator** | Manage books, inspect loans across students, view student history and penalties, process returns, record penalty payments and receive stock alerts. |
 | **Super Admin** | Access all Operator features, manage Student and Operator accounts, change system settings and view system logs. |
 
-Authentication uses **JWT bearer tokens**, with a default lifetime of one hour. The API reads the user's current account and role from the database when authenticating requests. Passwords are hashed with **Argon2id**.
+Authentication uses **JWT bearer tokens**, with a default lifetime of one hour. Token-based authentication was chosen so the separate React frontend can authenticate API requests without maintaining a shared server-side session. The API reads the user's current account and role from the database when authenticating requests. Passwords are hashed with **Argon2id**.
 
 ## System Logic
 
@@ -85,8 +85,8 @@ An unavailable book returns **HTTP 409** with the code `unavailable`. Existing u
 
 ### Returning a Book
 
-1. The student physically delivers the book to an Operator or Super Admin.
-2. Staff confirms the return in the application.
+1. The student clicks **Kërko kthimin** on an active loan. The request is recorded and staff receive an in-app notification.
+2. The student physically delivers the book. An Operator or Super Admin confirms receipt in the application.
 3. Stock increases by one immediately, regardless of whether a penalty remains unpaid.
 4. A return on or before the due date closes the loan without a penalty.
 5. A late return with a positive penalty rate creates a penalty and leaves the loan in `awaiting_payment` until payment is recorded.
@@ -99,11 +99,11 @@ penalty = days_late × daily_penalty_rate
 3 days late × €1.00 per day = €3.00
 ```
 
-The final payable penalty is calculated at return time using the rate configured at that moment. A zero penalty rate allows an overdue return to close without debt. Transactions and row locks protect stock and loan updates; repeated returns and repeated penalty payments are rejected.
+The final payable penalty is calculated at return time using the rate configured at that moment. A zero penalty rate allows an overdue return to close without debt. Transactions and row locks protect stock and loan updates; repeated return requests, physical returns and penalty payments are rejected. Overdue processing locks and reloads each candidate loan before updating it, so a completed return or payment cannot be overwritten by an older overdue check.
 
 ### Paying a Penalty
 
-The student can confirm payment from the personal penalties view. Staff can instead record a payment on the student's behalf. Payment marks the penalty as paid and closes its `awaiting_payment` loan. Stock is unchanged at this stage because it was already restored during the physical return.
+The student can confirm payment from the personal penalties view. Staff can instead record a payment on the student's behalf. Payment marks the penalty as paid and closes its `awaiting_payment` loan. Stock is unchanged at this stage because it was already restored during the physical return. A return request alone does not restore stock or stop overdue charges.
 
 ### Inventory and Notifications
 
@@ -151,7 +151,7 @@ These values are stored in the database and can be edited only by **Super Admin*
 | :--- | :--- |
 | `User` | Account details, password hash, role and soft-deletion state. |
 | `Book` | Bibliographic details, available stock and soft-deletion state. |
-| `Loan` | Student/book relationship, borrowing and return dates, status and recorded borrowing fee. |
+| `Loan` | Student/book relationship, borrowing, return-request and physical-return dates, status and recorded borrowing fee. |
 | `Penalty` | Finalized amount, days late and payment status for one loan. |
 | `Payment` | Payment amount, type, method, payer and optional staff processor. |
 | `Notification` | Account-specific message, type and read status. |
@@ -166,7 +166,7 @@ The ER diagram provides a relationship overview. Doctrine entity mappings and mi
 
 ## Quick Start
 
-The commands below use **PowerShell on Windows**. Install **PHP 8.2 or 8.3**, Composer, PostgreSQL, and Node.js/npm compatible with Vite 8. Enable `pdo_pgsql`, `bcmath` and the other extensions required by Composer. Account creation requires Argon2id support.
+The commands below use **PowerShell on Windows**. Install **PHP 8.2 or 8.3**, Composer, PostgreSQL, and Node.js/npm compatible with Vite 8. Enable `pdo_pgsql`, `bcmath` and the other extensions required by Composer. Account creation requires Argon2id support. After pulling updates, apply pending Doctrine migrations before starting the application.
 
 ### 1. Get the Project
 
@@ -237,12 +237,13 @@ Authenticated requests use `Authorization: Bearer <token>`. Each endpoint applie
 | `GET`, `POST` | `/api/books` | Search/list books or create a book. |
 | `GET`, `PUT`, `DELETE` | `/api/books/:id` | View, update or soft-delete a book. |
 | `POST` | `/api/loans` | Borrow a book using `book_id`. |
-| `POST` | `/api/loans/:id/return` | Process the physical return. |
+| `POST` | `/api/loans/:id/return-request` | Let a student request the return of their own active loan. |
+| `POST` | `/api/loans/:id/return` | Let staff confirm the physical return. |
 | `POST` | `/api/loans/:id/penalty/pay` | Record payment of a loan's penalty. |
 | `GET` | `/api/me/loans` | View personal active loans and the current policy. |
 | `GET` | `/api/me/history` | View personal borrowing history. |
 | `GET` | `/api/me/penalties` | View personal finalized penalties. |
-| `GET` | `/api/operator/loans` | Inspect loans across students, with an optional status filter. |
+| `GET` | `/api/operator/loans` | Inspect loans across students, with an optional status or pending-return-request filter. |
 | `GET` | `/api/operator/users/:id/loans` | View a student's borrowing history. |
 | `GET` | `/api/operator/users/:id/penalties` | View a student's penalties. |
 | `GET` | `/api/notifications` | Refresh alerts and list the current user's notifications. |
@@ -294,7 +295,7 @@ Remove-Item Env:APP_ENV
 
 The service tests **truncate tables in the test database** and refuse a database name that does not end in `_test`. Test mode disables configuration caching. Remove `APP_ENV` after testing before starting the normal application.
 
-Tests cover the last available copy, borrowing limits, unpaid-penalty lockout, unreturned overdue books, due-date boundaries, late-day calculations, stock restoration, payment authorization, zero penalty rates and duplicate returns/payments.
+Tests cover the last available copy, borrowing limits, unpaid-penalty lockout, unreturned overdue books, due-date boundaries, late-day calculations, stock restoration, payment authorization, zero penalty rates, return-request ownership and stock preservation, staff self-borrowing restrictions, duplicate requests/returns/payments, and overdue processing that overlaps a completed return.
 
 ### Frontend Checks
 
@@ -308,6 +309,8 @@ npm run build
 ## Assumptions and Trade-offs
 
 - **Payment simulation:** fees and penalties are recorded locally without external payment processing.
+- **Role boundaries:** only Student accounts can check out books for themselves. Operators and Super Admins process inventory, returns and payments.
+- **Return initiation:** students request a return in the application; staff confirms the physical receipt. No new loan status is introduced for a pending request.
 - **Penalty finalization:** the payable amount is finalized when staff receives the physical book. Later changes to the penalty rate do not alter already finalized penalties.
 - **Record retention:** books and accounts are soft-deleted to preserve history. Deleted accounts cannot sign in, deleted books cannot be borrowed, and their email addresses or ISBNs remain reserved.
 - **Token storage:** JWT tokens are stored in browser localStorage for this take-home application. Expired sessions return to the login screen.
