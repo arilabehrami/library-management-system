@@ -1,0 +1,15 @@
+<?php
+
+if (getenv('APP_ENV') !== 'testing') {
+    return [];
+}
+
+return [
+    'doctrine' => [
+        'connection' => [
+            'orm_default' => [
+                'params' => ['dbname' => getenv('DB_TEST_NAME') ?: 'library_management_test'],
+            ],
+        ],
+    ],
+];

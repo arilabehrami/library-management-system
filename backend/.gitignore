@@ -6,3 +6,7 @@ config/development.config.php
 data/cache/*
 !data/cache/.gitkeep
 phpunit.xml
+/data/DoctrineORMModule/
+/config/autoload/local.php
+/data/*.php
+/data/*.json
