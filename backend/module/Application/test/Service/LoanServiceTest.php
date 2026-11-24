@@ -37,6 +37,14 @@ final class LoanServiceTest extends TestCase
         $conn->executeStatement("UPDATE system_settings SET settingvalue = '1.00' WHERE settingkey = 'penalty_rate'");
     }
 
+    protected function tearDown(): void
+    {
+        if (isset($this->em)) {
+            $this->em->close();
+            $this->em->getConnection()->close();
+        }
+        parent::tearDown();
+    }
     private function service(): LoanService
     {
         return new LoanService($this->em, new NotificationService($this->em));
@@ -121,6 +129,28 @@ final class LoanServiceTest extends TestCase
         $this->expectException(\DomainException::class);
         $this->expectExceptionMessage('limitin');
         $this->service()->borrow($student, $this->book(2, 'next')->getId(), $this->now());
+    }
+
+    public function testOperatorCannotBorrowForThemself(): void
+    {
+        $operator = new User('Operator', 'operator@test.com', 'x', 'operator');
+        $this->em->persist($operator);
+        $this->em->flush();
+        $book = $this->book(1);
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('Vetëm studenti');
+        $this->service()->borrow($operator, $book->getId(), $this->now());
+    }
+
+    public function testSuperAdminCannotBorrowForThemself(): void
+    {
+        $admin = new User('Admin', 'admin@test.com', 'x', 'super_admin');
+        $this->em->persist($admin);
+        $this->em->flush();
+        $book = $this->book(1);
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('Vetëm studenti');
+        $this->service()->borrow($admin, $book->getId(), $this->now());
     }
 
     public function testDueDateIsEndOfDayAfterBorrowingPeriod(): void

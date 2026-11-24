@@ -40,6 +40,14 @@ final class ReturnServiceTest extends TestCase
         $conn->executeStatement("UPDATE system_settings SET settingvalue = '1.00' WHERE settingkey = 'penalty_rate'");
     }
 
+    protected function tearDown(): void
+    {
+        if (isset($this->em)) {
+            $this->em->close();
+            $this->em->getConnection()->close();
+        }
+        parent::tearDown();
+    }
     private function returns(): ReturnService
     {
         return new ReturnService($this->em, new NotificationService($this->em));
@@ -185,6 +193,81 @@ final class ReturnServiceTest extends TestCase
         $this->returns()->payPenalty($loan->getId(), $student, $now);
         $this->expectException(\DomainException::class);
         $this->returns()->payPenalty($loan->getId(), $student, $now);
+    }
+
+    public function testStudentCanRequestReturnWithoutRestoringStock(): void
+    {
+        $student = $this->student();
+        $loan = $this->borrowOn($student, '2026-11-22 10:00:00');
+        $this->staff();
+        $admin = new User('Admin', 'admin@test.com', 'x', 'super_admin');
+        $this->em->persist($admin);
+        $this->em->flush();
+        $now = new \DateTimeImmutable('2026-11-23 10:00:00');
+        $this->returns()->requestReturn($loan->getId(), $student, $now);
+
+        $this->assertSame($now, $loan->getReturnRequestedAt());
+        $this->assertNull($loan->getReturnedAt());
+        $this->assertSame(LoanStatus::Active, $loan->getStatus());
+        $this->assertSame(1, $loan->getBook()->getStock());
+        $this->assertSame(0, $this->em->getRepository(Penalty::class)->count([]));
+        $this->assertSame(2, $this->em->getRepository(\Application\Entity\Notification::class)->count(['type' => 'return_requested']));
+        $this->assertSame(1, $this->em->getRepository(\Application\Entity\SystemLog::class)->count(['actionType' => 'loan.return_requested']));
+    }
+
+    public function testOtherStudentCannotRequestReturn(): void
+    {
+        $loan = $this->borrowOn($this->student(), '2026-11-22 10:00:00');
+        $other = new User('Other', 'other@test.com', 'x', 'student');
+        $this->em->persist($other);
+        $this->em->flush();
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('Nuk ke leje');
+        $this->returns()->requestReturn($loan->getId(), $other, new \DateTimeImmutable());
+    }
+
+    public function testStaffCannotSubmitStudentReturnRequest(): void
+    {
+        $loan = $this->borrowOn($this->student(), '2026-11-22 10:00:00');
+        $staff = $this->staff();
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('Nuk ke leje');
+        $this->returns()->requestReturn($loan->getId(), $staff, new \DateTimeImmutable());
+    }
+
+    public function testDuplicateReturnRequestIsRejected(): void
+    {
+        $student = $this->student();
+        $loan = $this->borrowOn($student, '2026-11-22 10:00:00');
+        $this->returns()->requestReturn($loan->getId(), $student, new \DateTimeImmutable('2026-11-23 10:00:00'));
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('dërguar tashmë');
+        $this->returns()->requestReturn($loan->getId(), $student, new \DateTimeImmutable('2026-11-23 11:00:00'));
+    }
+
+    public function testReturnRequestDoesNotStopLateDays(): void
+    {
+        $student = $this->student();
+        $loan = $this->borrowOn($student, '2026-11-22 10:00:00');
+        $requested = new \DateTimeImmutable('2026-12-05 10:00:00');
+        $this->returns()->requestReturn($loan->getId(), $student, $requested);
+        $this->returns()->returnLoan($loan->getId(), $this->staff(), new \DateTimeImmutable('2026-12-09 10:00:00'));
+        $penalty = $this->em->getRepository(Penalty::class)->findOneBy(['loan' => $loan]);
+        $this->assertSame(3, $penalty->getDaysLate());
+        $this->assertSame('3.00', $penalty->getAmount());
+        $this->assertSame(2, $loan->getBook()->getStock());
+        $this->assertSame(LoanStatus::AwaitingPayment, $loan->getStatus());
+        $this->assertSame($requested->format(DATE_ATOM), $loan->getReturnRequestedAt()->format(DATE_ATOM));
+    }
+
+    public function testClosedLoanCannotReceiveReturnRequest(): void
+    {
+        $student = $this->student();
+        $loan = $this->borrowOn($student, '2026-11-22 10:00:00');
+        $this->returns()->returnLoan($loan->getId(), $this->staff(), new \DateTimeImmutable('2026-11-23 10:00:00'));
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('kthyer tashmë');
+        $this->returns()->requestReturn($loan->getId(), $student, new \DateTimeImmutable('2026-11-24 10:00:00'));
     }
 
     public function testStudentCannotReturnBook(): void

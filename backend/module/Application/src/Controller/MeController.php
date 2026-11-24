@@ -103,6 +103,7 @@ final class MeController extends AbstractActionController
             'borrowed_at' => $loan->getBorrowedAt()->format(DATE_ATOM),
             'due_at' => $loan->getDueAt()->format(DATE_ATOM),
             'returned_at' => $loan->getReturnedAt()?->format(DATE_ATOM),
+            'return_requested_at' => $loan->getReturnRequestedAt()?->format(DATE_ATOM),
             'status' => $status,
             'fee' => $loan->getBorrowFeeAmount(),
         ];

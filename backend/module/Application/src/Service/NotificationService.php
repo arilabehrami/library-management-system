@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Application\Service;
 
 use Application\Entity\Book;
+use Application\Entity\Loan;
 use Application\Entity\Notification;
 use Application\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
@@ -23,6 +24,26 @@ final class NotificationService
         $overdue = new OverdueService($this->em);
         $overdue->run(new \DateTimeImmutable());
         $overdue->remindPendingPenalties();
+    }
+
+    public function notifyReturnRequest(Loan $loan): void
+    {
+        $staff = $this->em->createQueryBuilder()
+            ->select('u')
+            ->from(User::class, 'u')
+            ->where('u.role IN (:roles)')
+            ->andWhere('u.deletedAt IS NULL')
+            ->setParameter('roles', ['operator', 'super_admin'])
+            ->getQuery()->getResult();
+
+        foreach ($staff as $user) {
+            $this->em->persist(new Notification(
+                $user,
+                'Kërkesë për kthim',
+                sprintf('%s kërkon kthimin e "%s". Konfirmoje kthimin vetëm pasi ta pranosh librin fizikisht.', $loan->getUser()->getName(), $loan->getBook()->getTitle()),
+                'return_requested'
+            ));
+        }
     }
 
     public function checkStock(Book $book): void

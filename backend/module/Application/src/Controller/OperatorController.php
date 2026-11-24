@@ -15,7 +15,7 @@ use Laminas\Mvc\Controller\AbstractActionController;
 
 final class OperatorController extends AbstractActionController
 {
-    private const STATUSES = ['active', 'overdue', 'awaiting_payment'];
+    private const STATUSES = ['active', 'overdue', 'awaiting_payment', 'return_requested'];
 
     public function __construct(
         private readonly AuthService $auth,
@@ -35,7 +35,7 @@ final class OperatorController extends AbstractActionController
         $status = is_string($status) && $status !== '' ? $status : null;
 
         if ($status !== null && !in_array($status, self::STATUSES, true)) {
-            return $this->json(['error' => 'status duhet: active, overdue ose awaiting_payment.'], 400);
+            return $this->json(['error' => 'status duhet: active, overdue, awaiting_payment ose return_requested.'], 400);
         }
 
         $now = new \DateTimeImmutable();
@@ -142,6 +142,7 @@ final class OperatorController extends AbstractActionController
             'borrowed_at' => $loan->getBorrowedAt()->format(DATE_ATOM),
             'due_at' => $loan->getDueAt()->format(DATE_ATOM),
             'returned_at' => $loan->getReturnedAt()?->format(DATE_ATOM),
+            'return_requested_at' => $loan->getReturnRequestedAt()?->format(DATE_ATOM),
             'status' => $status,
             'fee' => $loan->getBorrowFeeAmount(),
             'penalty' => ($penalty = $this->loans->penaltyForLoan($loan)) ? $this->presentPenalty($penalty) : null,

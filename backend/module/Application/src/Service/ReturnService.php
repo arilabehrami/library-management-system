@@ -24,6 +24,37 @@ final class ReturnService
     ) {
     }
 
+    public function requestReturn(int $loanId, User $actor, \DateTimeImmutable $now): Loan
+    {
+        return $this->em->wrapInTransaction(function () use ($loanId, $actor, $now): Loan {
+            $loan = $this->em->find(Loan::class, $loanId, LockMode::PESSIMISTIC_WRITE);
+            if ($loan === null) {
+                throw new \DomainException('Huazimi nuk u gjet.');
+            }
+            $this->em->refresh($loan, LockMode::PESSIMISTIC_WRITE);
+            if ($actor->getRole() !== 'student' || $loan->getUser()->getId() !== $actor->getId()) {
+                throw new \DomainException('Nuk ke leje të kërkosh kthimin e këtij huazimi.');
+            }
+            if ($loan->getReturnedAt() !== null) {
+                throw new \DomainException('Ky huazim është kthyer tashmë.');
+            }
+            if ($loan->getReturnRequestedAt() !== null) {
+                throw new \DomainException('Kërkesa e kthimit është dërguar tashmë.');
+            }
+
+            $loan->requestReturn($now);
+            $this->notifications->notifyReturnRequest($loan);
+            $this->em->persist(new SystemLog(
+                actor: $actor,
+                actionType: 'loan.return_requested',
+                entityType: 'Loan',
+                entityId: $loan->getId(),
+                details: json_encode(['book_id' => $loan->getBook()->getId()], JSON_THROW_ON_ERROR)
+            ));
+            return $loan;
+        });
+    }
+
     public function returnLoan(int $loanId, User $actor, \DateTimeImmutable $now): Loan
     {
         if (!$actor->isStaff()) {

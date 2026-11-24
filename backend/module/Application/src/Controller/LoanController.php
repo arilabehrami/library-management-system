@@ -47,6 +47,27 @@ final class LoanController extends AbstractActionController
         return $this->json(['loan' => $this->presentLoan($loan)], 201);
     }
 
+    public function requestReturnAction(): Response
+    {
+        if (!$this->getRequest()->isPost()) {
+            return $this->json(['error' => 'Metoda nuk lejohet.'], 405);
+        }
+        $user = $this->authenticate();
+        if ($user instanceof Response) {
+            return $user;
+        }
+        try {
+            $loan = $this->returns->requestReturn(
+                (int) $this->params()->fromRoute('id'),
+                $user,
+                new \DateTimeImmutable()
+            );
+        } catch (\DomainException $e) {
+            return $this->domainError($e);
+        }
+        return $this->json(['loan' => $this->presentLoan($loan)], 200);
+    }
+
     public function returnAction(): Response
     {
         if (!$this->getRequest()->isPost()) {
@@ -130,7 +151,7 @@ final class LoanController extends AbstractActionController
             ], 409);
         }
 
-        if (str_starts_with($message, 'Nuk ke leje') || str_starts_with($message, 'Vetëm operatori')) {
+        if (str_starts_with($message, 'Nuk ke leje') || str_starts_with($message, 'Vetëm')) {
             return $this->json(['error' => $message], 403);
         }
 
@@ -146,6 +167,7 @@ final class LoanController extends AbstractActionController
             'borrowed_at' => $loan->getBorrowedAt()->format(DATE_ATOM),
             'due_at' => $loan->getDueAt()->format(DATE_ATOM),
             'returned_at' => $loan->getReturnedAt()?->format(DATE_ATOM),
+            'return_requested_at' => $loan->getReturnRequestedAt()?->format(DATE_ATOM),
             'status' => $loan->getStatus()->value,
             'fee' => $loan->getBorrowFeeAmount(),
         ];

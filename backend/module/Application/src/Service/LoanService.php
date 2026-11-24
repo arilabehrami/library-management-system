@@ -32,6 +32,11 @@ final class LoanService
                 throw new \DomainException('Përdoruesi nuk u gjet.');
             }
 
+            $this->em->refresh($lockedUser, LockMode::PESSIMISTIC_WRITE);
+            if ($lockedUser->getRole() !== 'student') {
+                throw new \DomainException('Vetëm studenti mund të huazojë libra.');
+            }
+
             $book = $this->em->find(Book::class, $bookId, LockMode::PESSIMISTIC_WRITE);
             if ($book === null || $book->isDeleted()) {
                 throw new \DomainException('Libri nuk u gjet.');

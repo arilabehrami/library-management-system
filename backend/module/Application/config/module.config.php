@@ -52,6 +52,17 @@ return [
                     ],
                 ],
             ],
+            'api_loans_return_request' => [
+                'type' => Segment::class,
+                'options' => [
+                    'route' => '/api/loans/:id/return-request',
+                    'constraints' => ['id' => '\\d+'],
+                    'defaults' => [
+                        'controller' => Controller\LoanController::class,
+                        'action' => 'requestReturn',
+                    ],
+                ],
+            ],
             'api_loans_return' => [
                 'type'    => Segment::class,
                 'options' => [

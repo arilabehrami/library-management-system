@@ -41,6 +41,9 @@ final class OperatorQueryService
             $qb->andWhere('l.returnedAt IS NULL')
                ->andWhere('l.dueAt < :now')
                ->setParameter('now', $now->setTime(0, 0));
+        } elseif ($status === 'return_requested') {
+            $qb->andWhere('l.returnRequestedAt IS NOT NULL')
+               ->andWhere('l.returnedAt IS NULL');
         } elseif ($status === 'awaiting_payment') {
             $qb->andWhere('l.status = :st')
                ->setParameter('st', LoanStatus::AwaitingPayment);

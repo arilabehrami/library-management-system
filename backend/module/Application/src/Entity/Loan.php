@@ -30,6 +30,9 @@ class Loan{
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $returnedAt = null;
 
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $returnRequestedAt = null;
+
     #[ORM\Column(type: 'string', length: 30, enumType: LoanStatus::class)]
     private LoanStatus $status;
 
@@ -75,6 +78,14 @@ class Loan{
         return $this->returnedAt;
     }
 
+    public function getReturnRequestedAt(): ?\DateTimeImmutable{
+        return $this->returnRequestedAt;
+    }
+
+    public function requestReturn(\DateTimeImmutable $at): void{
+        $this->returnRequestedAt = $at;
+    }
+
     public function getStatus(): LoanStatus{
         return $this->status;
     }
@@ -93,7 +104,7 @@ class Loan{
     }
 
     public function markOverdue(): void{
-        if ($this->status === LoanStatus::Active) {
+        if ($this->status === LoanStatus::Active && $this->returnedAt === null) {
             $this->status = LoanStatus::Overdue;
         }
     }
