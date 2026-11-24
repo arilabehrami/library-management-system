@@ -8,6 +8,7 @@ use Application\Entity\Loan;
 use Application\Entity\LoanStatus;
 use Application\Entity\Notification;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\DBAL\LockMode;
 
 final class OverdueService
 {
@@ -19,7 +20,7 @@ final class OverdueService
     public function run(\DateTimeImmutable $now): int
     {
         $loans = $this->em->createQueryBuilder()
-            ->select('l')
+            ->select('l.id')
             ->from(Loan::class, 'l')
             ->where('l.returnedAt IS NULL')
             ->andWhere('l.status = :st')
@@ -27,26 +28,39 @@ final class OverdueService
             ->setParameter('st', LoanStatus::Active)
             ->setParameter('now', $now->setTime(0, 0))
             ->getQuery()
-            ->getResult();
+            ->getScalarResult();
 
-        foreach ($loans as $loan) {
-            $loan->markOverdue();
+        $count = 0;
+        foreach ($loans as $row) {
+            $updated = $this->em->wrapInTransaction(function () use ($row, $now): bool {
+                $loan = $this->em->find(Loan::class, (int) $row['id'], LockMode::PESSIMISTIC_WRITE);
+                if ($loan === null) {
+                    return false;
+                }
+                $this->em->refresh($loan, LockMode::PESSIMISTIC_WRITE);
+                if ($loan->getReturnedAt() !== null || $loan->getStatus() !== LoanStatus::Active || $loan->getDueAt() >= $now->setTime(0, 0)) {
+                    return false;
+                }
 
-            $this->em->persist(new Notification(
-                $loan->getUser(),
-                'Libër i vonuar dhe penalitet në pritje',
-                sprintf(
-                    '"%s" duhej kthyer më %s. Penaliteti rritet për çdo ditë vonesë. Dorëzo librin te operatori për llogaritjen dhe pagesën përfundimtare.',
-                    $loan->getBook()->getTitle(),
-                    $loan->getDueAt()->format('d.m.Y')
-                ),
-                'overdue'
-            ));
+                $loan->markOverdue();
+                $this->em->persist(new Notification(
+                    $loan->getUser(),
+                    'Libër i vonuar dhe penalitet në pritje',
+                    sprintf(
+                        '"%s" duhej kthyer më %s. Penaliteti rritet për çdo ditë vonesë. Dorëzo librin te operatori për llogaritjen dhe pagesën përfundimtare.',
+                        $loan->getBook()->getTitle(),
+                        $loan->getDueAt()->format('d.m.Y')
+                    ),
+                    'overdue'
+                ));
+                return true;
+            });
+            if ($updated) {
+                $count++;
+            }
         }
 
-        $this->em->flush();
-
-        return count($loans);
+        return $count;
     }
 
     public function remindPendingPenalties(): int
