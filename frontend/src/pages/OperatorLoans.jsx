@@ -12,6 +12,7 @@ const filters = [
   ['active', 'Aktive'],
   ['overdue', 'Të vonuara'],
   ['awaiting_payment', 'Pret pagesën'],
+  ['return_requested', 'Kërkesa kthimi'],
 ];
 export default function OperatorLoans({ onChange, refreshKey }) {
   const [filter, setFilter] = useState('');
@@ -105,6 +106,7 @@ export default function OperatorLoans({ onChange, refreshKey }) {
                 <th>Libri</th>
                 <th>Afati</th>
                 <th>Statusi</th>
+                <th>Kërkesa për kthim</th>
                 <th>Penaliteti</th>
                 <th>Veprimet</th>
               </tr>
@@ -125,6 +127,11 @@ export default function OperatorLoans({ onChange, refreshKey }) {
                   <td>{formatDate(l.due_at)}</td>
                   <td>
                     <Status value={l.status} />
+                  </td>
+                  <td>
+                    {l.return_requested_at
+                      ? formatDate(l.return_requested_at)
+                      : '—'}
                   </td>
                   <td>
                     {l.penalty

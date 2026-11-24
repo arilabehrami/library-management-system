@@ -116,6 +116,7 @@ export default function Dashboard() {
           <StudentLoans
             key={tab}
             history={tab === 'history'}
+            onChange={bump}
             refreshKey={refreshKey}
           />
         )}

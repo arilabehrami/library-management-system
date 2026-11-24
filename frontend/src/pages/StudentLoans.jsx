@@ -2,16 +2,41 @@ import { formatDate } from '../formatDate.js';
 import { useState } from 'react';
 import useData from '../hooks/useData.js';
 import Status from '../components/Status.jsx';
+import Button from '../components/Button.jsx';
+import Toast from '../components/Toast.jsx';
+import { api } from '../api.js';
 
-export default function StudentLoans({ history, refreshKey }) {
+export default function StudentLoans({ history, refreshKey, onChange }) {
   const { data, error, loading } = useData(
     history ? '/me/history' : '/me/loans',
     refreshKey,
   );
   const [query, setQuery] = useState('');
+  const [busy, setBusy] = useState(null);
+  const [message, setMessage] = useState('');
+  const [actionError, setActionError] = useState('');
   const loans = (data?.loans || []).filter((l) =>
     l.book.title.toLowerCase().includes(query.toLowerCase()),
   );
+  async function requestReturn(loan) {
+    if (
+      !window.confirm(
+        `Dërgo kërkesë për kthimin e “${loan.book.title}”? Librin duhet ta dorëzosh te operatori.`,
+      )
+    )
+      return;
+    setBusy(loan.id);
+    setActionError('');
+    try {
+      await api(`/loans/${loan.id}/return-request`, { method: 'POST' });
+      setMessage('Kërkesa u dërgua. Dorëzo librin te operatori për konfirmim.');
+      onChange();
+    } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  }
   return (
     <section className="card">
       <div className="section-heading">
@@ -31,8 +56,9 @@ export default function StudentLoans({ history, refreshKey }) {
       </div>
       {!history && (
         <p className="notice">
-          Për ta kthyer librin, dorëzoje te operatori. Në rast vonese,
-          penaliteti final llogaritet në ditën e kthimit.
+          Kërko kthimin këtu dhe dorëzo librin te operatori. Kërkesa nuk e
+          ndryshon stokun dhe nuk e ndal vonesën; kthimi konfirmohet kur libri
+          pranohet fizikisht.
         </p>
       )}
       {error && (
@@ -53,6 +79,7 @@ export default function StudentLoans({ history, refreshKey }) {
                 {history && <th>Kthyer</th>}
                 <th>Statusi</th>
                 <th>Tarifa</th>
+                {!history && <th>Kthimi</th>}
               </tr>
             </thead>
             <tbody>
@@ -75,6 +102,23 @@ export default function StudentLoans({ history, refreshKey }) {
                     <Status value={l.status} />
                   </td>
                   <td>€{l.fee}</td>
+                  {!history && (
+                    <td>
+                      {l.return_requested_at ? (
+                        <span className="badge badge-warn">
+                          Kthimi u kërkua më {formatDate(l.return_requested_at)}
+                        </span>
+                      ) : (
+                        <Button
+                          loading={busy === l.id}
+                          disabled={busy !== null}
+                          onClick={() => requestReturn(l)}
+                        >
+                          Kërko kthimin
+                        </Button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -88,6 +132,12 @@ export default function StudentLoans({ history, refreshKey }) {
           )}
         </div>
       )}
+      <Toast message={message} onClose={() => setMessage('')} />
+      <Toast
+        message={actionError}
+        type="error"
+        onClose={() => setActionError('')}
+      />
     </section>
   );
 }
